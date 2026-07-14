@@ -27,7 +27,7 @@ async fn main() {
                 let rpm: f64 = rng.random_range(800.0..850.0);
                 ENGINE_RPM.set(rpm);
 
-                let oil: f64 = rng.random_range(800.0..850.0);
+                let oil: f64 = rng.random_range(80.0..110.0);
                 OIL_TEMP.set(oil);
 
                 let err: f64 = rng.random_range(0.0..100.0);
