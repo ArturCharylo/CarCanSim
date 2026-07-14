@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Web framework to serve the /metrics endpoint
+axum = "0.8.9"
+# Asynchronous runtime
+tokio = { version = "1.0", features = ["full"] }
+# Prometheus instrumentation library
+prometheus = "0.14.0"
+# For generating random values (simulating sensor noise/fluctuations)
+rand = "0.10.2"
+# Lazy static for global metric registration
+lazy_static = "1.4"
