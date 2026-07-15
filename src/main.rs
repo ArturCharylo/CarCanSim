@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use tokio::time::{sleep, Duration};
 
 lazy_static! {
+    static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed").expect("Failed to create Vehicle speed gauge");
     static ref ENGINE_RPM: Gauge = Gauge::new("ENGINE_RPM", "Current Engine RPM").expect("Failed to create Engine RPM gauge");
     static ref OIL_TEMP: Gauge = Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
     static ref ERR_CODE: Gauge = Gauge::new("ERR_CODE", "Current error code").expect("Failed to create Error Code gauge");
@@ -13,6 +14,7 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
+    prometheus::register(Box::new(VEHICLE_SPEED.clone())).unwrap();
     prometheus::register(Box::new(ENGINE_RPM.clone())).unwrap();
     prometheus::register(Box::new(OIL_TEMP.clone())).unwrap();
     prometheus::register(Box::new(ERR_CODE.clone())).unwrap();
@@ -23,8 +25,11 @@ async fn main() {
             // before the asynchronous sleep, making the future safe to send across threads.
             {
                 let mut rng = rand::rng();
+
+                let speed: f64 = rng.random_range(0.0..100.0);
+                VEHICLE_SPEED.set(speed);
                 
-                let rpm: f64 = rng.random_range(800.0..850.0);
+                let rpm: f64 = rng.random_range(800.0..8500.0);
                 ENGINE_RPM.set(rpm);
 
                 let oil: f64 = rng.random_range(80.0..110.0);
