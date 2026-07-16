@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # The main Rust telemetry generator application
   telemetry-app:
