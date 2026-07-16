@@ -1,0 +1,19 @@
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    user: root
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      # Mount the host Docker socket to enable Docker-in-Docker behavior
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Map the current project directory directly to Jenkins for local building
+      - ./:/var/jenkins_home/workspace/telemetry-pipeline
+    restart: unless-stopped
+volumes:
+  jenkins_data:
+    driver: local

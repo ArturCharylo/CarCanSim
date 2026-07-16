@@ -1,0 +1,4 @@
+FROM prom/prometheus:latest
+
+# Copy the local configuration file directly into the image
+COPY prometheus.yml /etc/prometheus/prometheus.yml
