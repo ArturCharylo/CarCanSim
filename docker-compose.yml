@@ -15,6 +15,7 @@ services:
     image: prom/prometheus:latest
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     ports:
@@ -30,6 +31,8 @@ services:
     image: grafana/grafana:latest
     ports:
       - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -43,3 +46,8 @@ networks:
   # Custom bridge network to allow services to communicate via hostname
   telemetry-network:
     driver: bridge
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
