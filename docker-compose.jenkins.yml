@@ -14,6 +14,23 @@ services:
       # Map the current project directory directly to Jenkins for local building
       - ./:/var/jenkins_home/workspace/telemetry-pipeline
     restart: unless-stopped
+  gitea:
+    image: gitea/gitea:latest
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__security__ALLOWED_HOST_LIST=jenkins
+    ports:
+      # Map internal 3000 to 3002 to avoid conflicts with Grafana/Telemetry app
+      - "3002:3000"
+      # Map SSH port
+      - "2222:22"
+    volumes:
+      # Persistent storage for repositories and configurations
+      - gitea_data:/data
+    restart: unless-stopped
 volumes:
   jenkins_data:
+    driver: local
+  gitea_data:
     driver: local

@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent any 
 
     options {
         timestamps()
@@ -9,36 +9,35 @@ pipeline {
     stages {
         stage('Test & Lint (Rust)') {
             steps {
-                dir('/var/jenkins_home/workspace/telemetry-pipeline') {
-                    // Build only the 'builder' stage which contains Rust, dependencies and the source code
-                    sh 'docker build --target builder -t telemetry-builder .'
-                    
-                    sh 'docker run --rm telemetry-builder cargo test'
-                }
+                sh 'docker build --target builder -t telemetry-builder .'
+                
+                sh 'docker run --rm telemetry-builder cargo test'
             }
         }
-        
+
         stage('Build Environment') {
             steps {
-                dir('/var/jenkins_home/workspace/telemetry-pipeline') {
-                    sh 'docker compose build'
-                }
+                sh 'docker compose build'
             }
         }
-        
+
         stage('Deploy Locally') {
             steps {
-                dir('/var/jenkins_home/workspace/telemetry-pipeline') {
-                    sh 'docker compose up -d'
-                }
+                sh 'docker compose up -d'
             }
         }
     }
 
     post {
         always {
-            // Prune dangling images to save local storage
+            // Clean up dangling Docker images to free up WSL disk space
             sh 'docker image prune -f'
+        }
+        success {
+            echo "Pipeline executed successfully! Telemetry app, Prometheus, and Grafana are up and running."
+        }
+        failure {
+            echo "Pipeline failed. Check the Jenkins console output for troubleshooting."
         }
     }
 }
