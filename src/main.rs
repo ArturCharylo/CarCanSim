@@ -1,15 +1,19 @@
-use axum::{routing::get, Router};
-use prometheus::{Encoder, Gauge, TextEncoder};
+use axum::{Router, routing::get};
 use lazy_static::lazy_static;
-use rand::{RngExt};
+use prometheus::{Encoder, Gauge, TextEncoder};
+use rand::RngExt;
 use std::net::SocketAddr;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 lazy_static! {
-    static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed").expect("Failed to create Vehicle speed gauge");
-    static ref ENGINE_RPM: Gauge = Gauge::new("ENGINE_RPM", "Current Engine RPM").expect("Failed to create Engine RPM gauge");
-    static ref OIL_TEMP: Gauge = Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
-    static ref ERR_CODE: Gauge = Gauge::new("ERR_CODE", "Current error code").expect("Failed to create Error Code gauge");
+    static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed")
+        .expect("Failed to create Vehicle speed gauge");
+    static ref ENGINE_RPM: Gauge =
+        Gauge::new("ENGINE_RPM", "Current Engine RPM").expect("Failed to create Engine RPM gauge");
+    static ref OIL_TEMP: Gauge =
+        Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
+    static ref ERR_CODE: Gauge =
+        Gauge::new("ERR_CODE", "Current error code").expect("Failed to create Error Code gauge");
 }
 
 #[tokio::main]
@@ -21,14 +25,14 @@ async fn main() {
 
     tokio::spawn(async move {
         loop {
-            // By wrapping this in a new scope, the non-Send `rng` is dropped 
+            // By wrapping this in a new scope, the non-Send `rng` is dropped
             // before the asynchronous sleep, making the future safe to send across threads.
             {
                 let mut rng = rand::rng();
 
                 let speed: f64 = rng.random_range(0.0..100.0);
                 VEHICLE_SPEED.set(speed);
-                
+
                 let rpm: f64 = rng.random_range(800.0..8500.0);
                 ENGINE_RPM.set(rpm);
 
@@ -49,16 +53,15 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-
 }
 
-async fn metrics_handler() -> String{
+async fn metrics_handler() -> String {
     let encoder = TextEncoder::new();
     let metric_families = prometheus::gather();
     let mut buffer = vec![];
-    
+
     // Encode the gathered metrics into the Prometheus text format
     encoder.encode(&metric_families, &mut buffer).unwrap();
-    
+
     String::from_utf8(buffer).unwrap()
 }
