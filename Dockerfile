@@ -13,8 +13,8 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libssl3 && rm -rf /var/lib/apt/lists/*
 
 # Copy only the compiled binary from the builder stage
-COPY --from=builder /usr/src/app/target/release/CarCanSim /usr/local/bin/CarCanSim
+COPY --from=builder /usr/src/app/target/release/car_can_sim /usr/local/bin/car_can_sim
 
 EXPOSE 8080
 
-CMD ["CarCanSim"]
+CMD ["car_can_sim"]
