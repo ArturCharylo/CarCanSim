@@ -1,15 +1,17 @@
 use axum::{Router, routing::get};
 use lazy_static::lazy_static;
 use prometheus::{Encoder, Gauge, TextEncoder};
-use rand::RngExt;
 use std::net::SocketAddr;
 use tokio::time::{Duration, sleep};
+
+use CarCanSim::obd::{hardware::HardwareAdapter, simulator::Simulator, ObdInterface};
 
 lazy_static! {
     static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed")
         .expect("Failed to create Vehicle speed gauge");
     static ref ENGINE_RPM: Gauge =
         Gauge::new("ENGINE_RPM", "Current Engine RPM").expect("Failed to create Engine RPM gauge");
+    // We will keep OIL_TEMP and ERR_CODE static for now as they are not in the new interface
     static ref OIL_TEMP: Gauge =
         Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
     static ref ERR_CODE: Gauge =
@@ -23,25 +25,36 @@ async fn main() {
     prometheus::register(Box::new(OIL_TEMP.clone())).unwrap();
     prometheus::register(Box::new(ERR_CODE.clone())).unwrap();
 
+    let obd_mode = std::env::var("OBD_MODE").unwrap_or_else(|_| "simulator".to_string());
+
+    let obd_interface: Box<dyn ObdInterface> = if obd_mode == "hardware" {
+        Box::new(HardwareAdapter)
+    } else {
+        Box::new(Simulator)
+    };
+
+    // Test print
+    match obd_interface.read_engine_rpm() {
+        Ok(rpm) => println!("Initial test RPM read: {}", rpm),
+        Err(e) => println!("Initial test RPM read failed: {}", e),
+    }
+
     tokio::spawn(async move {
         loop {
-            // By wrapping this in a new scope, the non-Send `rng` is dropped
-            // before the asynchronous sleep, making the future safe to send across threads.
-            {
-                let mut rng = rand::rng();
+            // Read from interface
+            match obd_interface.read_vehicle_speed() {
+                Ok(speed) => VEHICLE_SPEED.set(speed as f64),
+                Err(e) => println!("Error reading speed: {}", e),
+            }
 
-                let speed: f64 = rng.random_range(0.0..100.0);
-                VEHICLE_SPEED.set(speed);
+            match obd_interface.read_engine_rpm() {
+                Ok(rpm) => ENGINE_RPM.set(rpm as f64),
+                Err(e) => println!("Error reading RPM: {}", e),
+            }
 
-                let rpm: f64 = rng.random_range(800.0..8500.0);
-                ENGINE_RPM.set(rpm);
-
-                let oil: f64 = rng.random_range(80.0..110.0);
-                OIL_TEMP.set(oil);
-
-                let err: f64 = rng.random_range(0.0..100.0);
-                ERR_CODE.set(err);
-            } // `rng` is dropped here
+            // Keep dummy data for others
+            OIL_TEMP.set(90.0);
+            ERR_CODE.set(0.0);
 
             sleep(Duration::from_secs(1)).await;
         }
