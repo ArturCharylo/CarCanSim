@@ -11,8 +11,11 @@ services:
     restart: unless-stopped
 
   # Prometheus for metrics scraping and aggregation
+  # Prometheus for metrics scraping and aggregation
   prometheus:
-    image: prom/prometheus:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.prometheus
     volumes:
       - prometheus_data:/prometheus
     command:
