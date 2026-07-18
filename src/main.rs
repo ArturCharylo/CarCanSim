@@ -4,7 +4,7 @@ use prometheus::{Encoder, Gauge, TextEncoder};
 use std::net::SocketAddr;
 use tokio::time::{Duration, sleep};
 
-use CarCanSim::obd::{hardware::HardwareAdapter, simulator::Simulator, ObdInterface};
+use car_can_sim::obd::{hardware::HardwareAdapter, simulator::Simulator, ObdInterface};
 
 lazy_static! {
     static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed")
