@@ -17,13 +17,13 @@ pipeline {
 
         stage('Build Environment') {
             steps {
-                sh 'docker compose build'
+                sh 'docker compose -p carcansim build'
             }
         }
 
         stage('Deploy Locally') {
             steps {
-                sh 'docker compose up -d'
+                sh 'docker compose -p carcansim up -d --build'
             }
         }
     }
