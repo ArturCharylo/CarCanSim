@@ -30,7 +30,7 @@ async fn main() {
     let obd_interface: Box<dyn ObdInterface> = if obd_mode == "hardware" {
         Box::new(HardwareAdapter)
     } else {
-        Box::new(Simulator)
+        Box::new(Simulator::new())
     };
 
     // Test print
