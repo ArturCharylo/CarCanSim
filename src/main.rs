@@ -1,7 +1,7 @@
 use axum::{Router, routing::get};
 use lazy_static::lazy_static;
 use prometheus::{Encoder, Gauge, TextEncoder};
-use std::net::SocketAddr;
+use std::{net::SocketAddr};
 use tokio::time::{Duration, sleep};
 
 use car_can_sim::obd::{hardware::HardwareAdapter, simulator::Simulator, ObdInterface};
@@ -40,6 +40,9 @@ async fn main() {
     }
 
     tokio::spawn(async move {
+        let mut current_oil_temp: f64 = 20.0;
+        let mut current_rpm: f64 = 800.0;
+
         loop {
             // Read from interface
             match obd_interface.read_vehicle_speed() {
@@ -48,12 +51,19 @@ async fn main() {
             }
 
             match obd_interface.read_engine_rpm() {
-                Ok(rpm) => ENGINE_RPM.set(rpm as f64),
+                Ok(rpm) => {
+                    let rpm_f64 = rpm as f64;
+                    ENGINE_RPM.set(rpm_f64);
+                    current_rpm = rpm_f64;
+                },
                 Err(e) => println!("Error reading RPM: {}", e),
             }
 
+            let target_oil_temp = 90.0 + ((current_rpm - 800.0).max(0.0) / 7000.0) * 25.0;
+            current_oil_temp += (target_oil_temp - current_oil_temp) * 0.05;
+
             // Keep dummy data for others
-            OIL_TEMP.set(90.0);
+            OIL_TEMP.set(current_oil_temp);
             ERR_CODE.set(0.0);
 
             sleep(Duration::from_secs(1)).await;
