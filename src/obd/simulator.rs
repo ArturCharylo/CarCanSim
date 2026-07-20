@@ -8,6 +8,8 @@ struct VehicleState {
     speed: f32,
     accelerating: bool,
     last_update: Instant,
+    oil_temp: f32,
+    current_rpm: u32,
 }
 
 pub struct Simulator {
@@ -22,6 +24,8 @@ impl Simulator {
                 speed: 0.0,
                 accelerating: true,
                 last_update: Instant::now(),
+                oil_temp: 20.0,
+                current_rpm: 800,
             }),
         }
     }
@@ -72,6 +76,9 @@ impl ObdInterface for Simulator {
         let jitter: i32 = rng.random_range(-30..30);
         
         let final_rpm = (base_rpm as i32 + jitter).max(800) as u32;
+        if let Ok(mut state) = self.state.lock() {
+            state.current_rpm = final_rpm;
+        }
 
         Ok(final_rpm)
     }
@@ -79,5 +86,24 @@ impl ObdInterface for Simulator {
     fn read_vehicle_speed(&self) -> Result<u8, ObdError> {
         let speed = self.update_and_get_speed();
         Ok(speed)
+    }
+
+    fn read_oil_temp(&self) -> Result<f32, ObdError> {
+        let mut state = self.state.lock().unwrap();
+        
+        let target_temp = 85.0 + (state.current_rpm as f32 / 350.0);
+        
+        let diff = target_temp - state.oil_temp;
+        state.oil_temp += diff * 0.02; // Smoothing factor - controls how fast it heats up/cools down
+        
+        let mut rng = rand::rng();
+        let fluctuation: f32 = rng.random_range(-0.3..0.3);
+        
+        Ok(state.oil_temp + fluctuation)
+    }
+
+    fn read_error_code(&self) -> Result<u8, ObdError> {
+        // Return 0 for no errors by default
+        Ok(0)
     }
 }

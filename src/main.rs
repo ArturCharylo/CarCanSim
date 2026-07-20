@@ -40,31 +40,30 @@ async fn main() {
     }
 
     tokio::spawn(async move {
-        let mut current_oil_temp: f64 = 20.0;
-        let mut current_rpm: f64 = 800.0;
-
         loop {
-            // Read from interface
+            // Read and set vehicle speed
             match obd_interface.read_vehicle_speed() {
                 Ok(speed) => VEHICLE_SPEED.set(speed as f64),
                 Err(e) => println!("Error reading speed: {}", e),
             }
 
+            // Read and set engine RPM
             match obd_interface.read_engine_rpm() {
-                Ok(rpm) => {
-                    let rpm_f64 = rpm as f64;
-                    ENGINE_RPM.set(rpm_f64);
-                    current_rpm = rpm_f64;
-                },
+                Ok(rpm) => ENGINE_RPM.set(rpm as f64),
                 Err(e) => println!("Error reading RPM: {}", e),
             }
 
-            let target_oil_temp = 90.0 + ((current_rpm - 800.0).max(0.0) / 7000.0) * 25.0;
-            current_oil_temp += (target_oil_temp - current_oil_temp) * 0.05;
+            // Read and set oil temperature from the interface
+            match obd_interface.read_oil_temp() {
+                Ok(temp) => OIL_TEMP.set(temp as f64),
+                Err(e) => println!("Error reading oil temp: {}", e),
+            }
 
-            // Keep dummy data for others
-            OIL_TEMP.set(current_oil_temp);
-            ERR_CODE.set(0.0);
+            // Read and set error codes
+            match obd_interface.read_error_code() {
+                Ok(code) => ERR_CODE.set(code as f64),
+                Err(e) => println!("Error reading error code: {}", e),
+            }
 
             sleep(Duration::from_secs(1)).await;
         }
