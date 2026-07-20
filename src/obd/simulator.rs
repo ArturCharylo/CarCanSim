@@ -1,4 +1,4 @@
-use crate::obd::ObdInterface;
+use crate::obd::{ObdInterface, ObdError};
 use rand::RngExt; 
 use std::sync::Mutex;
 use std::time::Instant;
@@ -54,7 +54,7 @@ impl Simulator {
 }
 
 impl ObdInterface for Simulator {
-    fn read_engine_rpm(&self) -> Result<u32, String> {
+    fn read_engine_rpm(&self) -> Result<u32, ObdError> {
         let speed = self.update_and_get_speed();
 
         // Calculate RPM based on current speed and simulated gear ratios
@@ -76,7 +76,7 @@ impl ObdInterface for Simulator {
         Ok(final_rpm)
     }
 
-    fn read_vehicle_speed(&self) -> Result<u8, String> {
+    fn read_vehicle_speed(&self) -> Result<u8, ObdError> {
         let speed = self.update_and_get_speed();
         Ok(speed)
     }

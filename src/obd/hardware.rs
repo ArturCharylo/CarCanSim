@@ -1,15 +1,4 @@
-use crate::obd::ObdInterface;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum ObdError{
-    #[error("Hardware disconnected")]
-    Disconnected,
-    #[error("Failed to parse metrics")]
-    ParseError,
-    #[error("Feature not implemented: {0}")]
-    NotImplemented(String),
-}
+use crate::obd::{ObdInterface, ObdError};
 
 pub struct HardwareAdapter;
 
