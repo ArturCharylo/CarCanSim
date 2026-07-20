@@ -14,3 +14,4 @@ prometheus = "0.14.0"
 rand = "0.10.2"
 # Lazy static for global metric registration
 lazy_static = "1.4"
+thiserror = "2.0.19"
