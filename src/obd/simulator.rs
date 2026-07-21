@@ -10,6 +10,7 @@ struct VehicleState {
     last_update: Instant,
     oil_temp: f32,
     current_rpm: u32,
+    current_gear: u8,
 }
 
 pub struct Simulator {
@@ -26,6 +27,7 @@ impl Simulator {
                 last_update: Instant::now(),
                 oil_temp: 20.0,
                 current_rpm: 800,
+                current_gear: 1,
             }),
         }
     }
@@ -39,9 +41,11 @@ impl Simulator {
 
         let mut rng = rand::rng();
 
-        // Simulate acceleration and deceleration logic
+        // Simulate acceleration and deceleration logic with aerodynamic drag
         if state.accelerating {
-            state.speed += rng.random_range(5.0..15.0) * delta_time;
+            // Acceleration decreases at higher speeds (simulating air resistance and engine load)
+            let acceleration_factor = (130.0 - state.speed).max(10.0) / 10.0;
+            state.speed += rng.random_range(2.0..6.0) * acceleration_factor * delta_time;
             if state.speed >= 120.0 {
                 state.accelerating = false; 
             }
@@ -53,6 +57,17 @@ impl Simulator {
             }
         }
 
+        // Automatic transmission shift logic 
+        state.current_gear = match state.speed as u8 {
+            0..=15 => 1,
+            16..=30 => 2,
+            31..=50 => 3,
+            51..=70 => 4,
+            71..=90 => 5,
+            91..=110 => 6,
+            _ => 7,
+        };
+
         state.speed as u8
     }
 }
@@ -60,18 +75,24 @@ impl Simulator {
 impl ObdInterface for Simulator {
     fn read_engine_rpm(&self) -> Result<u32, ObdError> {
         let speed = self.update_and_get_speed();
-
-        // Calculate RPM based on current speed and simulated gear ratios
-        let base_rpm = match speed {
-            0 => 800,
-            1..=25 => 800 + (speed as u32 * 80),
-            26..=50 => 1200 + ((speed - 25) as u32 * 60),
-            51..=80 => 1500 + ((speed - 50) as u32 * 50),
-            81..=110 => 1800 + ((speed - 80) as u32 * 40),
-            _ => 2000 + ((speed - 110) as u32 * 35),
+        let gear = {
+            let state = self.state.lock().unwrap();
+            state.current_gear
         };
 
-        // Add minor mechanical jitter for realism
+        // Calculate RPM considering the current gear and speed
+        // This simulates the RPM drop after shifting gears in an automatic transmission
+        let base_rpm = match gear {
+            1 => 800 + (speed as u32 * 100),
+            2 => 1200 + ((speed.saturating_sub(15)) as u32 * 80),
+            3 => 1400 + ((speed.saturating_sub(30)) as u32 * 60),
+            4 => 1500 + ((speed.saturating_sub(50)) as u32 * 50),
+            5 => 1600 + ((speed.saturating_sub(70)) as u32 * 45),
+            6 => 1700 + ((speed.saturating_sub(90)) as u32 * 40),
+            _ => 1800 + ((speed.saturating_sub(110)) as u32 * 35),
+        };
+
+        // minor mechanical jitter for realism
         let mut rng = rand::rng();
         let jitter: i32 = rng.random_range(-30..30);
         
@@ -94,7 +115,7 @@ impl ObdInterface for Simulator {
         let target_temp = 85.0 + (state.current_rpm as f32 / 350.0);
         
         let diff = target_temp - state.oil_temp;
-        state.oil_temp += diff * 0.02; // Smoothing factor - controls how fast it heats up/cools down
+        state.oil_temp += diff * 0.02; 
         
         let mut rng = rand::rng();
         let fluctuation: f32 = rng.random_range(-0.3..0.3);
@@ -103,7 +124,12 @@ impl ObdInterface for Simulator {
     }
 
     fn read_error_code(&self) -> Result<u8, ObdError> {
-        // Return 0 for no errors by default
-        Ok(0)
+        let mut rng = rand::rng();
+        // 1% chance to simulate an active DTC (Diagnostic Trouble Code) for monitoring tests
+        if rng.random_range(0..100) < 1 {
+            Ok(1) 
+        } else {
+            Ok(0)
+        }
     }
 }
