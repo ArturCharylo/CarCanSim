@@ -3,6 +3,11 @@ FROM rust:slim-bookworm AS builder
 
 WORKDIR /usr/src/app
 
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 
 RUN cargo build --release
