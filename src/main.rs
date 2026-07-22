@@ -28,7 +28,10 @@ async fn main() {
     let obd_mode = std::env::var("OBD_MODE").unwrap_or_else(|_| "simulator".to_string());
 
     let obd_interface: Box<dyn ObdInterface> = if obd_mode == "hardware" {
-        Box::new(HardwareAdapter)
+        let port = std::env::var("OBD_PORT").unwrap_or_else(|_| "COM3".to_string());
+        let adapter = HardwareAdapter::new(&port)
+            .expect("Failed to initialize Bluetooth OBD-II adapter");
+        Box::new(adapter)
     } else {
         Box::new(Simulator::new())
     };
