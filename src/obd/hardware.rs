@@ -41,39 +41,98 @@ impl HardwareAdapter {
 
 impl ObdInterface for HardwareAdapter {
     fn read_engine_rpm(&self) -> Result<u32, ObdError> {
-        let _raw_response = self.send_request(b"010C\r").map_err(|_| {
+        let raw_response = self.send_request(b"010C\r").map_err(|_| {
             ObdError::NotImplemented("Hardware connection error".to_string())
         })?;
         
-        // TODO: Implement parsing logic to convert the hex string response into a u32 value
-        // Returning a mock value to satisfy the compiler for now
+       let cleaned = raw_response.replace(" ", "").replace("\r", "").replace("\n", "");
+        
+        // Verify if the response matches the expected echo (41 0C)
+        if cleaned.starts_with("410C") && cleaned.len() >= 8 {
+            // Extract byte A and byte B as hex strings
+            let a_hex = &cleaned[4..6];
+            let b_hex = &cleaned[6..8];
+            
+            // Parse hex strings into integers
+            let a = u32::from_str_radix(a_hex, 16).unwrap_or(0);
+            let b = u32::from_str_radix(b_hex, 16).unwrap_or(0);
+            
+            let rpm = ((a * 256) + b) / 4;
+            return Ok(rpm);
+        }
+        
         Ok(0)
     }
 
     fn read_vehicle_speed(&self) -> Result<u8, ObdError> {
-        let _raw_response = self.send_request(b"010D\r").map_err(|_| {
+        let raw_response = self.send_request(b"010D\r").map_err(|_| {
             ObdError::NotImplemented("Hardware connection error".to_string())
         })?;
         
-        // TODO: Implement parsing logic
+        let cleaned = raw_response.replace(" ", "").replace("\r", "").replace("\n", "");
+
+        if cleaned.starts_with("410D") && cleaned.len() >= 6{
+            let velocity = u8::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
+            return Ok(velocity);
+        }
+
         Ok(0)
     }
 
     fn read_oil_temp(&self) -> Result<f32, ObdError> {
-        let _raw_response = self.send_request(b"015C\r").map_err(|_| {
+        let raw_response = self.send_request(b"015C\r").map_err(|_| {
             ObdError::NotImplemented("Hardware connection error".to_string())
         })?;
         
-        // TODO: Implement parsing logic
+        let cleaned = raw_response.replace(" ", "").replace("\r", "").replace("\n", "");
+
+        if cleaned.starts_with("415C") && cleaned.len() >= 6{
+            let a = u8::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
+            let oil_temp = (a as f32) - 40.0;
+            return Ok(oil_temp);
+        }
         Ok(0.0)
     }
 
-    fn read_error_code(&self) -> Result<u8, ObdError> {
-        let _raw_response = self.send_request(b"03\r").map_err(|_| {
+    fn read_error_code(&self) -> Result<String, ObdError> {
+        let raw_response = self.send_request(b"03\r").map_err(|_| {
             ObdError::NotImplemented("Hardware connection error".to_string())
         })?;
         
-        // TODO: Implement parsing logic for Diagnostic Trouble Codes
-        Ok(0)
+         let cleaned = raw_response.replace(" ", "").replace("\r", "").replace("\n", "");
+        
+        // Mode 03 response starts with "43". The first DTC is located in the next two bytes.
+        if cleaned.starts_with("43") && cleaned.len() >= 6 {
+            let a_hex = &cleaned[2..4];
+            let b_hex = &cleaned[4..6];
+            
+            let a = u8::from_str_radix(a_hex, 16).unwrap_or(0);
+            let b = u8::from_str_radix(b_hex, 16).unwrap_or(0);
+            
+            if a == 0 && b == 0 {
+                return Ok("NONE".to_string());
+            }
+
+            // 1st character determines the vehicle system
+            let system = match (a >> 6) & 0b11 {
+                0 => 'P', // Powertrain
+                1 => 'C', // Chassis
+                2 => 'B', // Body
+                3 => 'U', // Network
+                _ => 'P',
+            };
+            
+            // Extract the remaining hex digits
+            let digit1 = (a >> 4) & 0b11;
+            let digit2 = a & 0b1111;
+            let digit3 = (b >> 4) & 0b1111;
+            let digit4 = b & 0b1111;
+            
+            let dtc = format!("{}{}{:X}{:X}{:X}", system, digit1, digit2, digit3, digit4);
+            return Ok(dtc);
+        }
+        
+        Ok("UNKNOWN".to_string())
+    
     }
 }

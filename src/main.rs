@@ -63,9 +63,23 @@ async fn main() {
             }
 
             // Read and set error codes
-            match obd_interface.read_error_code() {
-                Ok(code) => ERR_CODE.set(code as f64),
-                Err(e) => println!("Error reading error code: {}", e),
+           match obd_interface.read_error_code() {
+                Ok(code) => {
+                    if code == "NONE" {
+                        ERR_CODE.set(0.0);
+                    } else if code == "UNKNOWN" {
+                        ERR_CODE.set(0.0);
+                        println!("Warning: Received UNKNOWN error code status.");
+                    } else {
+                        // An actual Diagnostic Trouble Code (DTC) was detected
+                        // Set the metric flag to 1.0 to trigger alerts in Grafana/Prometheus
+                        ERR_CODE.set(1.0);
+                        println!("Diagnostic Trouble Code detected: {}", code);
+                    }
+                }
+                Err(e) => {
+                    println!("Error reading error code: {}", e);
+                }
             }
 
             sleep(Duration::from_secs(1)).await;

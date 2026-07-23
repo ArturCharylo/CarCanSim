@@ -123,13 +123,13 @@ impl ObdInterface for Simulator {
         Ok(state.oil_temp + fluctuation)
     }
 
-    fn read_error_code(&self) -> Result<u8, ObdError> {
+    fn read_error_code(&self) -> Result<String, ObdError> {
         let mut rng = rand::rng();
         // 1% chance to simulate an active DTC (Diagnostic Trouble Code) for monitoring tests
         if rng.random_range(0..100) < 1 {
-            Ok(1) 
+            Ok("P012C".to_string()) 
         } else {
-            Ok(0)
+            Ok("NONE".to_string())
         }
     }
 }
