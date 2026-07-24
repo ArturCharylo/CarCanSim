@@ -18,7 +18,7 @@ spec:
         runAsUser: 0
       containers:
         - name: jenkins
-          image: my-jenkins:latest
+          image: my-jenkins:v2
           imagePullPolicy: IfNotPresent
           env:
             - name: DOCKER_HOST
