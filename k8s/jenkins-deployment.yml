@@ -15,21 +15,7 @@ spec:
         app: jenkins
     spec:
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        supplementalGroups: [0, 999] 
-      initContainers:
-        - name: init-permissions
-          image: alpine
-          command: ["sh", "-c", "chmod 666 /var/run/docker.sock && chown -R 1000:1000 /var/jenkins_home"]
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-            - name: jenkins-storage
-              mountPath: /var/jenkins_home
-            - name: docker-sock
-              mountPath: /var/run/docker.sock
+        runAsUser: 0
       containers:
         - name: jenkins
           image: my-jenkins:latest
