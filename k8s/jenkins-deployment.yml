@@ -14,12 +14,24 @@ spec:
       labels:
         app: jenkins
     spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        supplementaryGroups: [0, 999] 
+      initContainers:
+        - name: init-permissions
+          image: alpine
+          command: ["sh", "-c", "chown -R 1000:1000 /var/jenkins_home"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: jenkins-storage
+              mountPath: /var/jenkins_home
       containers:
         - name: jenkins
           image: my-jenkins:latest
           imagePullPolicy: IfNotPresent
-          securityContext:
-            runAsUser: 0
           ports:
             - containerPort: 8080
             - containerPort: 50000
