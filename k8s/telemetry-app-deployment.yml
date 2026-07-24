@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-app
+  labels:
+    app: telemetry-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemetry-app
+  template:
+    metadata:
+      labels:
+        app: telemetry-app
+    spec:
+      containers:
+        - name: telemetry-app
+          image: telemetry-app:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PROMETHEUS_ENDPOINT
+              value: "http://prometheus-service:9090"

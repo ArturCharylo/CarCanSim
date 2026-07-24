@@ -10,31 +10,30 @@ pipeline {
         stage('Test & Lint (Rust)') {
             steps {
                 sh 'docker build --target builder -t telemetry-builder .'
-                
                 sh 'docker run --rm telemetry-builder cargo test'
             }
         }
 
-        stage('Build Environment') {
+        stage('Build Image') {
             steps {
-                sh 'docker compose -p carcansim build'
+                sh 'docker build -t telemetry-app:latest .'
             }
         }
 
-        stage('Deploy Locally') {
+        stage('Deploy to Kubernetes') {
             steps {
-                sh 'docker compose -p carcansim up -d --build'
+                sh 'kubectl apply -f k8s/'
+                sh 'kubectl rollout restart deployment telemetry-app'
             }
         }
     }
 
     post {
         always {
-            // Clean up dangling Docker images to free up WSL disk space
             sh 'docker image prune -f'
         }
         success {
-            echo "Pipeline executed successfully! Telemetry app, Prometheus, and Grafana are up and running."
+            echo "Pipeline executed successfully! New version deployed to Kubernetes."
         }
         failure {
             echo "Pipeline failed. Check the Jenkins console output for troubleshooting."
