@@ -45,13 +45,15 @@ Deploy Jenkins Infrastructure (CI/CD Server):
 
 ```bash
 kubectl apply -f k8s/jenkins/
-Deploy Applications & Monitoring (Gitea, Grafana, Prometheus, Telemetry App, and Ingress):
 ```
+
+> Deploy Applications & Monitoring (Gitea, Grafana, Prometheus, Telemetry App, and Ingress):
 
 ```bash
 kubectl apply -f k8s/
-Note: kubectl apply -f k8s/ is used specifically for reloads in Gitea, Prometheus, Grafana, and the core app.
 ```
+
+> Note: kubectl apply -f k8s/ is used specifically for reloads in Gitea, Prometheus, Grafana, and the core app.
 
 ## 🔑 Post-Deployment Configuration
 
