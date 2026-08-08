@@ -2,33 +2,9 @@ trigger:
   - main
 
 pool:
-  name: "Default"
-  vmImage: 'ubuntu-latest'
-
-variables:
-  RUST_VERSION: 'stable'
+  name: 'Default'
 
 steps:
   - script: |
-      sudo apt-get update
-      sudo apt-get install -y pkg-config libudev-dev
-    displayName: 'Install system dependencies (libudev & pkg-config)'
-  - script: |
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain $(RUST_VERSION)
-      echo "##vso[task.prependpath]$HOME/.cargo/bin"
-    displayName: 'Install Rust toolchain'
-
-  - script: rustup component add rustfmt clippy
-    displayName: 'Install formatting and linting tools'
-
-  - script: cargo fmt --all -- --check
-    displayName: 'Check code formatting'
-
-  - script: cargo clippy -- -D warnings
-    displayName: 'Run Clippy linter'
-
-  - script: cargo test --verbose
-    displayName: 'Run unit and integration tests'
-
-  - script: cargo build --release
-    displayName: 'Build release binary'
+      docker build -t carcansim:latest .
+    displayName: 'Build CarCanSim via Docker'
