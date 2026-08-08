@@ -1,5 +1,5 @@
-use crate::obd::{ObdInterface, ObdError};
-use rand::RngExt; 
+use crate::obd::{ObdError, ObdInterface};
+use rand::RngExt;
 use std::sync::Mutex;
 use std::time::Instant;
 
@@ -16,6 +16,12 @@ struct VehicleState {
 pub struct Simulator {
     // Mutex allows interior mutability for &self methods
     state: Mutex<VehicleState>,
+}
+
+impl Default for Simulator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Simulator {
@@ -47,17 +53,17 @@ impl Simulator {
             let acceleration_factor = (130.0 - state.speed).max(10.0) / 10.0;
             state.speed += rng.random_range(2.0..6.0) * acceleration_factor * delta_time;
             if state.speed >= 120.0 {
-                state.accelerating = false; 
+                state.accelerating = false;
             }
         } else {
             state.speed -= rng.random_range(5.0..15.0) * delta_time;
             if state.speed <= 0.0 {
                 state.speed = 0.0;
-                state.accelerating = true; 
+                state.accelerating = true;
             }
         }
 
-        // Automatic transmission shift logic 
+        // Automatic transmission shift logic
         state.current_gear = match state.speed as u8 {
             0..=15 => 1,
             16..=30 => 2,
@@ -95,7 +101,7 @@ impl ObdInterface for Simulator {
         // minor mechanical jitter for realism
         let mut rng = rand::rng();
         let jitter: i32 = rng.random_range(-30..30);
-        
+
         let final_rpm = (base_rpm as i32 + jitter).max(800) as u32;
         if let Ok(mut state) = self.state.lock() {
             state.current_rpm = final_rpm;
@@ -111,15 +117,15 @@ impl ObdInterface for Simulator {
 
     fn read_oil_temp(&self) -> Result<f32, ObdError> {
         let mut state = self.state.lock().unwrap();
-        
+
         let target_temp = 85.0 + (state.current_rpm as f32 / 350.0);
-        
+
         let diff = target_temp - state.oil_temp;
-        state.oil_temp += diff * 0.02; 
-        
+        state.oil_temp += diff * 0.02;
+
         let mut rng = rand::rng();
         let fluctuation: f32 = rng.random_range(-0.3..0.3);
-        
+
         Ok(state.oil_temp + fluctuation)
     }
 
@@ -127,7 +133,7 @@ impl ObdInterface for Simulator {
         let mut rng = rand::rng();
         // 1% chance to simulate an active DTC (Diagnostic Trouble Code) for monitoring tests
         if rng.random_range(0..100) < 1 {
-            Ok("P012C".to_string()) 
+            Ok("P012C".to_string())
         } else {
             Ok("NONE".to_string())
         }

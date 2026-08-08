@@ -1,10 +1,10 @@
 use axum::{Router, routing::get};
 use lazy_static::lazy_static;
 use prometheus::{Encoder, Gauge, TextEncoder};
-use std::{net::SocketAddr};
+use std::net::SocketAddr;
 use tokio::time::{Duration, sleep};
 
-use car_can_sim::obd::{hardware::HardwareAdapter, simulator::Simulator, ObdInterface};
+use car_can_sim::obd::{ObdInterface, hardware::HardwareAdapter, simulator::Simulator};
 
 lazy_static! {
     static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed")
@@ -29,8 +29,8 @@ async fn main() {
 
     let obd_interface: Box<dyn ObdInterface> = if obd_mode == "hardware" {
         let port = std::env::var("OBD_PORT").unwrap_or_else(|_| "COM3".to_string());
-        let adapter = HardwareAdapter::new(&port)
-            .expect("Failed to initialize Bluetooth OBD-II adapter");
+        let adapter =
+            HardwareAdapter::new(&port).expect("Failed to initialize Bluetooth OBD-II adapter");
         Box::new(adapter)
     } else {
         Box::new(Simulator::new())
@@ -63,7 +63,7 @@ async fn main() {
             }
 
             // Read and set error codes
-           match obd_interface.read_error_code() {
+            match obd_interface.read_error_code() {
                 Ok(code) => {
                     if code == "NONE" {
                         ERR_CODE.set(0.0);

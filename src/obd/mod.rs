@@ -4,7 +4,7 @@ pub mod simulator;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ObdError{
+pub enum ObdError {
     #[error("Hardware disconnected")]
     Disconnected,
     #[error("Failed to parse metrics")]
