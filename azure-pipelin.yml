@@ -1,0 +1,29 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  RUST_VERSION: 'stable'
+
+steps:
+  - script: |
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain $(RUST_VERSION)
+      echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+    displayName: 'Install Rust toolchain'
+
+  - script: rustup component add rustfmt clippy
+    displayName: 'Install formatting and linting tools'
+
+  - script: cargo fmt --all -- --check
+    displayName: 'Check code formatting'
+
+  - script: cargo clippy -- -D warnings
+    displayName: 'Run Clippy linter'
+
+  - script: cargo test --verbose
+    displayName: 'Run unit and integration tests'
+
+  - script: cargo build --release
+    displayName: 'Build release binary'
