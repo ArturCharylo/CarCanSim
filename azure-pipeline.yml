@@ -9,6 +9,10 @@ variables:
 
 steps:
   - script: |
+      sudo apt-get update
+      sudo apt-get install -y pkg-config libudev-dev
+    displayName: 'Install system dependencies (libudev & pkg-config)'
+  - script: |
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain $(RUST_VERSION)
       echo "##vso[task.prependpath]$HOME/.cargo/bin"
     displayName: 'Install Rust toolchain'
