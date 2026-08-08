@@ -1,0 +1,10 @@
+trigger:
+  - main
+
+pool:
+  name: 'Default'
+
+steps:
+  - script: |
+      docker build -t carcansim:latest .
+    displayName: 'Build CarCanSim via Docker'
