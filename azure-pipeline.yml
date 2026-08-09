@@ -8,3 +8,9 @@ steps:
   - script: |
       docker build -t carcansim:latest .
     displayName: 'Build CarCanSim via Docker'
+  - script: |
+      kind load docker-image carcansim:latest --name carcansim-cluster
+      kubectl apply -f k8s/
+      kubectl set image deployment/carcansim carcansim=carcansim:latest
+      kubetctl rollout status deployment/carcansim --timeout=60s
+    displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
