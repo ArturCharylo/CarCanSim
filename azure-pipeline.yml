@@ -6,11 +6,11 @@ pool:
 
 steps:
   - script: |
-      docker build -t carcansim:latest .
-    displayName: 'Build CarCanSim via Docker'
+      docker build -t telemetry-app:latest .
+    displayName: 'Build Telemetry App via Docker'
   - script: |
-      kind load docker-image carcansim:latest --name carcansim-cluster
+      kind load docker-image telemetry-app:latest --name carcansim-cluster
       kubectl apply -f k8s/
-      kubectl set image deployment/carcansim carcansim=carcansim:latest
-      kubetctl rollout status deployment/carcansim --timeout=60s
+      kubectl set image deployment/telemetry-app telemetry-app=telemetry-app:latest
+      kubectl rollout status deployment/telemetry-app --timeout=60s
     displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
