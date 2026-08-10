@@ -4,13 +4,13 @@ trigger:
 pool:
   name: 'Default'
 
+variables:
+  CLUSTER_NAME: 'carcansim-cluster'
+
 steps:
   - script: |
       docker build -t telemetry-app:latest .
     displayName: 'Build Telemetry App via Docker'
   - script: |
-      kind load docker-image telemetry-app:latest --name carcansim-cluster
-      kubectl apply -f k8s/
-      kubectl set image deployment/telemetry-app telemetry-app=telemetry-app:latest
-      kubectl rollout status deployment/telemetry-app --timeout=60s
+      kind load docker-image telemetry-app:latest --name $(CLUSTER_NAME)
     displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
