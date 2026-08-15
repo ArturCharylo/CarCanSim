@@ -138,4 +138,12 @@ impl ObdInterface for Simulator {
             Ok("NONE".to_string())
         }
     }
+
+    fn read_current_gear(&self) -> Result<u8, ObdError> {
+        let gear = {
+            let state = self.state.lock().unwrap();
+            state.current_gear
+        };
+        Ok(gear)
+    }
 }

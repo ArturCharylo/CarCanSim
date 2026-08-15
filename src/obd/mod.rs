@@ -18,4 +18,5 @@ pub trait ObdInterface: Send + Sync {
     fn read_vehicle_speed(&self) -> Result<u8, ObdError>;
     fn read_oil_temp(&self) -> Result<f32, ObdError>;
     fn read_error_code(&self) -> Result<String, ObdError>;
+    fn read_current_gear(&self) -> Result<u8, ObdError>;
 }

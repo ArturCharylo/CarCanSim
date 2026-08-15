@@ -16,6 +16,8 @@ lazy_static! {
         Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
     static ref ERR_CODE: Gauge =
         Gauge::new("ERR_CODE", "Current error code").expect("Failed to create Error Code gauge");
+    static ref CURRENT_GEAR: Gauge =
+        Gauge::new("CURRENT_GEAR", "Current gear").expect("Failed to read current gear");
 }
 
 #[tokio::main]
@@ -24,6 +26,7 @@ async fn main() {
     prometheus::register(Box::new(ENGINE_RPM.clone())).unwrap();
     prometheus::register(Box::new(OIL_TEMP.clone())).unwrap();
     prometheus::register(Box::new(ERR_CODE.clone())).unwrap();
+    prometheus::register(Box::new(CURRENT_GEAR.clone())).unwrap();
 
     let obd_mode = std::env::var("OBD_MODE").unwrap_or_else(|_| "simulator".to_string());
 
@@ -80,6 +83,10 @@ async fn main() {
                 Err(e) => {
                     println!("Error reading error code: {}", e);
                 }
+            }
+            match obd_interface.read_current_gear() {
+                Ok(gear) => CURRENT_GEAR.set(gear as f64),
+                Err(e) => println!("Error reading current gear: {}", e)
             }
 
             sleep(Duration::from_secs(1)).await;
