@@ -6,11 +6,59 @@ pool:
 
 variables:
   CLUSTER_NAME: 'carcansim-cluster'
+  ACR_NAME: 'acrcarcansimartur123'
+  APP_NAME: 'app-carcansim'
+  RESOURCE_GROUP: 'rg-carcansim'
+  IMAGE_TAG: '$(Build.BuildId)'
 
-steps:
-  - script: |
-      docker build -t telemetry-app:latest .
-    displayName: 'Build Telemetry App via Docker'
-  - script: |
-      kind load docker-image telemetry-app:latest --name $(CLUSTER_NAME)
-    displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
+stages:
+  # Stage 1: tests & build
+  - stage: LocalTestAndBuild
+    displayName: 'Local Test and Build'
+    jobs:
+      - job: TestAndBuild
+        displayName: 'Run Tests and Build Docker Image'
+        steps:
+          - script: |
+              docker build -t telemetry-app:latest .
+            displayName: 'Build Telemetry App via Docker'
+          - script: |
+              kind load docker-image telemetry-app:latest --name $(CLUSTER_NAME)
+            displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
+
+  # Stage 2: Deploy to Azure (ACR + ACA)
+  - stage: DeployToAzure
+    displayName: 'Deploy to Azure'
+    dependsOn: LocalTestAndBuild
+    condition: succeeded()
+    jobs:
+      - job: DeployToAzure
+        displayName: 'Push to Azure Container Registry and Update Azure Container Apps'
+        steps:
+          - script: |
+              docker build -t $(ACR_NAME).azurecr.io/carcansim:$(IMAGE_TAG) -t $(ACR_NAME).azurecr.io/carcansim:latest .
+            displayName: 'Build Docker Image for Azure'
+
+          - script: |
+              echo "$(AZURE_CLIENT_SECRET)" | docker login $(ACR_NAME).azurecr.io -u $(AZURE_CLIENT_ID) --password-stdin
+            displayName: 'Login to Azure Container Registry'
+            env:
+              AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
+              AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
+
+          - script: |
+              docker push $(ACR_NAME).azurecr.io/carcansim:$(IMAGE_TAG)
+              docker push $(ACR_NAME).azurecr.io/carcansim:latest
+            displayName: 'Push Docker Image to Azure Container Registry'
+
+          - script: |
+              az login --service-principal -u $(AZURE_CLIENT_ID) -p $(AZURE_CLIENT_SECRET) --tenant $(AZURE_TENANT_ID)
+              az containerapp update \
+                --name $(APP_NAME) \
+                --resource-group $(RESOURCE_GROUP) \
+                --image $(ACR_NAME).azurecr.io/carcansim:$(IMAGE_TAG)
+            displayName: 'Update Azure Container App Revision'
+            env:
+              AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
+              AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
+              AZURE_TENANT_ID: $(AZURE_TENANT_ID)
