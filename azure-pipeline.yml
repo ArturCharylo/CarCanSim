@@ -53,7 +53,7 @@ stages:
             displayName: 'Push Docker Image & Update Container App'
             inputs:
               azureSubscription: $(SERVICE_CONNECTION)
-              scriptType: 'pscore'
+              scriptType: 'ps'
               scriptLocation: 'inlineScript'
               inlineScript: |
                 # Authenticate docker client with ACR using Azure CLI credentials
