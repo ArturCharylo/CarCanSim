@@ -29,13 +29,14 @@ stages:
       - job: TestAndBuild
         displayName: 'Run Tests and Build Docker Image'
         steps:
-          - script: |
-              docker build \
-               -t telemetry-app:latest \
-               -t $(FULL_IMAGE_NAME):$(IMAGE_TAG) \
-               -t $(FULL_IMAGE_NAME):latest .
+          - powershell: |
+              docker build `
+                -t telemetry-app:latest `
+                -t $(FULL_IMAGE_NAME):$(IMAGE_TAG) `
+                -t $(FULL_IMAGE_NAME):latest .
             displayName: 'Build Telemetry App via Docker'
-          - script: |
+
+          - powershell: |
               kind load docker-image telemetry-app:latest --name $(CLUSTER_NAME)
             displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
 
