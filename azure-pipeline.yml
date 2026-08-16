@@ -16,6 +16,8 @@ variables:
     value: 'rg-carcansim'
   - name: IMAGE_TAG
     value: '$(Build.BuildId)'
+  - name: FULL_IMAGE_NAME
+    value: '$(ACR_NAME).azurecr.io/carcansim'
 
 stages:
   # Stage 1: tests & build
@@ -26,7 +28,10 @@ stages:
         displayName: 'Run Tests and Build Docker Image'
         steps:
           - script: |
-              docker build -t telemetry-app:latest .
+              docker build \
+               -t telemetry-app:latest \
+               -t $(FULL_IMAGE_NAME):$(IMAGE_TAG) \
+               -t $(FULL_IMAGE_NAME):latest .
             displayName: 'Build Telemetry App via Docker'
           - script: |
               kind load docker-image telemetry-app:latest --name $(CLUSTER_NAME)
@@ -41,29 +46,22 @@ stages:
       - job: DeployToAzure
         displayName: 'Push to ACR and Update ACA'
         steps:
-          - powershell: |
-              docker build -t $(ACR_NAME).azurecr.io/carcansim:$(IMAGE_TAG) -t $(ACR_NAME).azurecr.io/carcansim:latest .
-            displayName: 'Build Docker Image for Azure'
+          - task: AzureCLI@2
+            displayName: 'Push Docker Image & Update Container App'
+            inputs:
+              azureSubscription: $(SERVICE_CONNECTION)
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Authenticate docker client with ACR using Azure CLI credentials
+                az acr login --name $(ACR_NAME)
 
-          - powershell: |
-              az login --service-principal -u "$env:AZURE_CLIENT_ID" -p "$env:AZURE_CLIENT_SECRET" --tenant "$env:AZURE_TENANT_ID"
-              az acr login --name $(ACR_NAME)
-              docker push $(ACR_NAME).azurecr.io/carcansim:$(IMAGE_TAG)
-              docker push $(ACR_NAME).azurecr.io/carcansim:latest
-            displayName: 'Login to ACR & Push Docker Image'
-            env:
-              AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
-              AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
-              AZURE_TENANT_ID: $(AZURE_TENANT_ID)
+                # Push pre-built tags from local daemon
+                docker push $(FULL_IMAGE_NAME):$(IMAGE_TAG)
+                docker push $(FULL_IMAGE_NAME):latest
 
-          - powershell: |
-              az login --service-principal -u "$env:AZURE_CLIENT_ID" -p "$env:AZURE_CLIENT_SECRET" --tenant "$env:AZURE_TENANT_ID"
-              az containerapp update `
-                --name $(APP_NAME) `
-                --resource-group $(RESOURCE_GROUP) `
-                --image $(ACR_NAME).azurecr.io/carcansim:$(IMAGE_TAG)
-            displayName: 'Update Azure Container App Revision'
-            env:
-              AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
-              AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
-              AZURE_TENANT_ID: $(AZURE_TENANT_ID)
+                # Update Azure Container App revision to roll out the new image
+                az containerapp update `
+                  --name $(APP_NAME) `
+                  --resource-group $(RESOURCE_GROUP) `
+                  --image $(FULL_IMAGE_NAME):$(IMAGE_TAG)
