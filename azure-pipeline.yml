@@ -6,6 +6,8 @@ pool:
 
 variables:
   - group: carcansim-variables
+  - name: SERVICE_CONNECTION
+    value: 'sc-azure-carcansim'
   - name: CLUSTER_NAME
     value: 'carcansim-cluster'
   - name: ACR_NAME
