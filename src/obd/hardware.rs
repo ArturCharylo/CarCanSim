@@ -77,6 +77,50 @@ pub fn parse_error_code(raw_response: &str) -> String {
     "UNKNOWN".to_string()
 }
 
+// Parses the standard OBD-II PID 01 A4 for current gear.
+// Note: Very few vehicles actually support this PID in Mode 01.
+pub fn parse_current_gear_pid(raw_response: &str) -> u8 {
+    let cleaned = raw_response
+        .replace(" ", "")
+        .replace("\r", "")
+        .replace("\n", "");
+    
+    // Verify if the response matches the expected echo (41 A4)
+    if cleaned.starts_with("41A4") && cleaned.len() >= 8 {
+        // Byte A contains the actual gear
+        return u8::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
+    }
+    0
+}
+
+// Calculates the current gear based on the ratio between RPM and Vehicle Speed.
+// This is the most reliable method, but requires calibration (ratio thresholds) for the specific vehicle.
+pub fn calculate_gear_from_ratio(rpm: u32, speed: u8) -> u8 {
+    if speed == 0 || rpm < 800{
+        return 0; // Neutral or vehicle is stopped
+    }
+
+    let ratio = rpm as f32 / speed as f32;
+
+    // Example thresholds for a 6-speed manual transmission.
+    // You will need to log RPM and Speed in each gear to find your car's exact thresholds.
+    if ratio > 120.0 {
+        1
+    } else if ratio > 75.0 {
+        2
+    } else if ratio > 50.0 {
+        3
+    } else if ratio > 38.0 {
+        4
+    } else if ratio > 28.0 {
+        5
+    } else if ratio > 15.0 {
+        6
+    } else {
+        0 // Unknown or neutral out of bounds
+    }
+}
+
 // --- HARDWARE ADAPTER ---
 
 pub struct HardwareAdapter {
@@ -142,7 +186,15 @@ impl ObdInterface for HardwareAdapter {
     }
 
     fn read_current_gear(&self) -> Result<u8, ObdError> {
-        Ok(2) // placeholder for test purposes just to avoid errors
+        // Approach 1: Try reading the standard PID (often fails/returns NO DATA)
+        // let raw = self.send_request(b"01A4\r").map_err(|_| ObdError::NotImplemented("Hardware error".to_string()))?;
+        // Ok(parse_current_gear_pid(&raw))
+
+        // Approach 2: The universal fallback calculation using RPM and Speed
+        let rpm = self.read_engine_rpm()?;
+        let speed = self.read_vehicle_speed()?;
+        
+        Ok(calculate_gear_from_ratio(rpm, speed))
     }
 }
 
