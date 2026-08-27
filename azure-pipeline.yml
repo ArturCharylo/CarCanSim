@@ -4,6 +4,14 @@ trigger:
 pool:
   name: 'Default'
 
+# Azure resource group must be created for stage 2 to succeed.
+# This is a flag for the pipeline to pass omiting the stage 2 to avoid unneccesary costs from Azure ACR.
+parameters:
+  - name: deployToAzure
+    displayName: 'Deploy to Azure cloud?'
+    type: boolean
+    default: false
+
 variables:
   - group: carcansim-variables
   - name: CLUSTER_NAME
@@ -36,7 +44,7 @@ stages:
   - stage: DeployToAzure
     displayName: 'Deploy to Azure'
     dependsOn: LocalTestAndBuild
-    condition: succeeded()
+    condition: and(succeeded(), eq('${{ parameters.deployToAzure }}', 'true'))
     jobs:
       - job: DeployToAzure
         displayName: 'Push to ACR and Update ACA'
