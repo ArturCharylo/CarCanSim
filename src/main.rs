@@ -1,4 +1,4 @@
-use axum::{Router, routing::get};
+use axum::{Router, http::StatusCode, response::IntoResponse, routing::get};
 use lazy_static::lazy_static;
 use prometheus::{Encoder, Gauge, TextEncoder};
 use std::net::SocketAddr;
@@ -11,7 +11,6 @@ lazy_static! {
         .expect("Failed to create Vehicle speed gauge");
     static ref ENGINE_RPM: Gauge =
         Gauge::new("ENGINE_RPM", "Current Engine RPM").expect("Failed to create Engine RPM gauge");
-    // We will keep OIL_TEMP and ERR_CODE static for now as they are not in the new interface
     static ref OIL_TEMP: Gauge =
         Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
     static ref ERR_CODE: Gauge =
@@ -93,7 +92,9 @@ async fn main() {
         }
     });
 
-    let app = Router::new().route("/metrics", get(metrics_handler));
+    let app = Router::new()
+    .route("/metrics", get(metrics_handler))
+    .route("/health", get(health_handler));
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("Running on port http://localhost:{}/metrics", addr.port());
 
@@ -110,4 +111,8 @@ async fn metrics_handler() -> String {
     encoder.encode(&metric_families, &mut buffer).unwrap();
 
     String::from_utf8(buffer).unwrap()
+}
+
+async fn health_handler() -> impl IntoResponse {
+    (StatusCode::OK, "Ok")
 }
