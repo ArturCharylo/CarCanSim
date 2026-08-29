@@ -1,31 +1,20 @@
-use axum::{Router, http::StatusCode, response::IntoResponse, routing::get};
-use lazy_static::lazy_static;
-use prometheus::{Encoder, Gauge, TextEncoder};
+mod metrics;
+
+use axum::{Router, routing::get};
 use std::net::SocketAddr;
 use tokio::time::{Duration, sleep};
 
 use car_can_sim::obd::{ObdInterface, hardware::HardwareAdapter, simulator::Simulator};
 
-lazy_static! {
-    static ref VEHICLE_SPEED: Gauge = Gauge::new("VEHICLE_SPEED", "Current Vehicle Speed")
-        .expect("Failed to create Vehicle speed gauge");
-    static ref ENGINE_RPM: Gauge =
-        Gauge::new("ENGINE_RPM", "Current Engine RPM").expect("Failed to create Engine RPM gauge");
-    static ref OIL_TEMP: Gauge =
-        Gauge::new("OIL_TEMP", "Current Oil Temperature").expect("Failed to create oil temp gauge");
-    static ref ERR_CODE: Gauge =
-        Gauge::new("ERR_CODE", "Current error code").expect("Failed to create Error Code gauge");
-    static ref CURRENT_GEAR: Gauge =
-        Gauge::new("CURRENT_GEAR", "Current gear").expect("Failed to read current gear");
-}
+use metrics::{
+    CURRENT_GEAR, ENGINE_RPM, ERR_CODE, OIL_TEMP, VEHICLE_SPEED, 
+    health_handler, metrics_handler, register_metrics
+};
 
 #[tokio::main]
 async fn main() {
-    prometheus::register(Box::new(VEHICLE_SPEED.clone())).unwrap();
-    prometheus::register(Box::new(ENGINE_RPM.clone())).unwrap();
-    prometheus::register(Box::new(OIL_TEMP.clone())).unwrap();
-    prometheus::register(Box::new(ERR_CODE.clone())).unwrap();
-    prometheus::register(Box::new(CURRENT_GEAR.clone())).unwrap();
+    // Initialize Prometheus metrics
+    register_metrics();
 
     let obd_mode = std::env::var("OBD_MODE").unwrap_or_else(|_| "simulator".to_string());
 
@@ -93,26 +82,12 @@ async fn main() {
     });
 
     let app = Router::new()
-    .route("/metrics", get(metrics_handler))
-    .route("/health", get(health_handler));
+        .route("/metrics", get(metrics_handler))
+        .route("/health", get(health_handler));
+
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("Running on port http://localhost:{}/metrics", addr.port());
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn metrics_handler() -> String {
-    let encoder = TextEncoder::new();
-    let metric_families = prometheus::gather();
-    let mut buffer = vec![];
-
-    // Encode the gathered metrics into the Prometheus text format
-    encoder.encode(&metric_families, &mut buffer).unwrap();
-
-    String::from_utf8(buffer).unwrap()
-}
-
-async fn health_handler() -> impl IntoResponse {
-    (StatusCode::OK, "Ok")
 }
