@@ -1,14 +1,14 @@
 mod metrics;
 
-use axum::{Router, routing::get};
-use std::net::SocketAddr;
+use axum::{Router, middleware, routing::get};
+use std::{net::SocketAddr};
 use tokio::time::{Duration, sleep};
 
 use car_can_sim::obd::{ObdInterface, hardware::HardwareAdapter, simulator::Simulator};
 
 use metrics::{
     CURRENT_GEAR, ENGINE_RPM, ERR_CODE, OIL_TEMP, VEHICLE_SPEED, 
-    health_handler, metrics_handler, register_metrics
+    health_handler, metrics_handler, register_metrics, track_metrics_middleware,
 };
 
 #[tokio::main]
@@ -83,7 +83,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/metrics", get(metrics_handler))
-        .route("/health", get(health_handler));
+        .route("/health", get(health_handler))
+        .layer(middleware::from_fn(track_metrics_middleware));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("Running on port http://localhost:{}/metrics", addr.port());
