@@ -17,9 +17,21 @@ spec:
       containers:
         - name: telemetry-app
           image: telemetry-app:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
           env:
             - name: PROMETHEUS_ENDPOINT
               value: "http://prometheus:9090"
