@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: 'https://github.com/ArturCharylo/CarCanSim'
-    targetRevision: HEAD
+    targetRevision: health
     path: k8s
   destination:
     server: 'https://kubernetes.default.svc'

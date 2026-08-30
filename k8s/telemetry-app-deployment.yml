@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: telemetry-app
-          image: carcansim-telemetry-app:v1
-          imagePullPolicy: Never
+          image: telemetry-app:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           env:
