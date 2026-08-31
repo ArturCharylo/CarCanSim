@@ -20,8 +20,8 @@ lazy_static! {
         Gauge::new("CURRENT_GEAR", "Current gear").expect("Failed to read current gear");
 
     // Metric for counting response statuses
-    pub static ref HTTP_REQUESTS_COUNTS: CounterVec = 
-        CounterVec::new(Opts::new("http_requests_counts", "Total number of HTTP requests processed"),
+    pub static ref HTTP_REQUESTS_TOTAL: CounterVec = 
+        CounterVec::new(Opts::new("http_requests_total", "Total number of HTTP requests processed"),
         &["path", "status"]
     ).expect("Failed to create HTTP requests counter");
 }
@@ -33,7 +33,7 @@ pub fn register_metrics() {
     prometheus::register(Box::new(OIL_TEMP.clone())).unwrap();
     prometheus::register(Box::new(ERR_CODE.clone())).unwrap();
     prometheus::register(Box::new(CURRENT_GEAR.clone())).unwrap();
-    prometheus::register(Box::new(HTTP_REQUESTS_COUNTS.clone())).unwrap();
+    prometheus::register(Box::new(HTTP_REQUESTS_TOTAL.clone())).unwrap();
 }
 
 // Middleware to track HTTP status codes
@@ -51,7 +51,7 @@ pub async fn track_metrics_middleware(req: Request, next: Next) -> Response {
     };
 
     // Increment counter for the matching path and status group
-    HTTP_REQUESTS_COUNTS
+    HTTP_REQUESTS_TOTAL
         .with_label_values(&[&path, status_family])
         .inc();
 
