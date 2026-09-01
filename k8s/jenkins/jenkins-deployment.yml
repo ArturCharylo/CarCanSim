@@ -20,18 +20,18 @@ spec:
         - name: jenkins
           image: my-jenkins:v2
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
           env:
             - name: DOCKER_HOST
               value: "tcp://localhost:2375"
             - name: JAVA_OPTS
               value: "-Xmx512m -Xms256m"
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "1000m"
           ports:
             - containerPort: 8080
             - containerPort: 50000
@@ -41,6 +41,13 @@ spec:
               
         - name: dind
           image: docker:dind
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
           securityContext:
             privileged: true
           env:
