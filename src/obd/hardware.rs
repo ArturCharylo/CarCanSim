@@ -7,9 +7,10 @@ use std::time::Duration;
 // These functions do not depend on hardware and can be easily unit-tested.
 pub fn parse_engine_rpm(raw_response: &str) -> u32 {
     let cleaned = raw_response
-        .replace(" ", "")
-        .replace("\r", "")
-        .replace("\n", "");
+        .replace(' ', "")
+        .replace('\r', "")
+        .replace('\n', "");
+
     // Verify if the response matches the expected echo (41 0C)
     if cleaned.starts_with("410C") && cleaned.len() >= 8 {
         let a = u32::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
@@ -21,9 +22,10 @@ pub fn parse_engine_rpm(raw_response: &str) -> u32 {
 
 pub fn parse_vehicle_speed(raw_response: &str) -> u8 {
     let cleaned = raw_response
-        .replace(" ", "")
-        .replace("\r", "")
-        .replace("\n", "");
+        .replace(' ', "")
+        .replace('\r', "")
+        .replace('\n', "");
+
     // Verify if the response matches the expected echo (41 0D)
     if cleaned.starts_with("410D") && cleaned.len() >= 6 {
         return u8::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
@@ -33,9 +35,10 @@ pub fn parse_vehicle_speed(raw_response: &str) -> u8 {
 
 pub fn parse_oil_temp(raw_response: &str) -> f32 {
     let cleaned = raw_response
-        .replace(" ", "")
-        .replace("\r", "")
-        .replace("\n", "");
+        .replace(' ', "")
+        .replace('\r', "")
+        .replace('\n', "");
+
     // Verify if the response matches the expected echo (41 5C)
     if cleaned.starts_with("415C") && cleaned.len() >= 6 {
         let a = u8::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
@@ -46,9 +49,10 @@ pub fn parse_oil_temp(raw_response: &str) -> f32 {
 
 pub fn parse_error_code(raw_response: &str) -> String {
     let cleaned = raw_response
-        .replace(" ", "")
-        .replace("\r", "")
-        .replace("\n", "");
+        .replace(' ', "")
+        .replace('\r', "")
+        .replace('\n', "");
+
     // Mode 03 response starts with "43". The first DTC is located in the next two bytes.
     if cleaned.starts_with("43") && cleaned.len() >= 6 {
         let a = u8::from_str_radix(&cleaned[2..4], 16).unwrap_or(0);
@@ -81,29 +85,26 @@ pub fn parse_error_code(raw_response: &str) -> String {
 // Note: Very few vehicles actually support this PID in Mode 01.
 pub fn parse_current_gear_pid(raw_response: &str) -> u8 {
     let cleaned = raw_response
-        .replace(" ", "")
-        .replace("\r", "")
-        .replace("\n", "");
-    
+        .replace(' ', "")
+        .replace('\r', "")
+        .replace('\n', "");
+
     // Verify if the response matches the expected echo (41 A4)
     if cleaned.starts_with("41A4") && cleaned.len() >= 8 {
-        // Byte A contains the actual gear
         return u8::from_str_radix(&cleaned[4..6], 16).unwrap_or(0);
     }
     0
 }
 
 // Calculates the current gear based on the ratio between RPM and Vehicle Speed.
-// This is the most reliable method, but requires calibration (ratio thresholds) for the specific vehicle.
 pub fn calculate_gear_from_ratio(rpm: u32, speed: u8) -> u8 {
-    if speed == 0 || rpm < 800{
+    if speed == 0 || rpm < 800 {
         return 0; // Neutral or vehicle is stopped
     }
 
     let ratio = rpm as f32 / speed as f32;
 
-    // Example thresholds for a 6-speed manual transmission.
-    // You will need to log RPM and Speed in each gear to find your car's exact thresholds.
+    // Example thresholds for manual/calibrated ratios
     if ratio > 120.0 {
         1
     } else if ratio > 75.0 {
@@ -117,7 +118,7 @@ pub fn calculate_gear_from_ratio(rpm: u32, speed: u8) -> u8 {
     } else if ratio > 15.0 {
         6
     } else {
-        0 // Unknown or neutral out of bounds
+        0
     }
 }
 
@@ -129,30 +130,74 @@ pub struct HardwareAdapter {
 
 impl HardwareAdapter {
     pub fn new(port_name: &str) -> Result<Self, String> {
-        let mut connection = serialport::new(port_name, 38400)
-            .timeout(Duration::from_millis(2000))
+        let connection = serialport::new(port_name, 38400)
+            .timeout(Duration::from_millis(1500))
             .open()
-            .map_err(|e| format!("Failed to open port: {}", e))?;
+            .map_err(|e| format!("Failed to open port {}: {}", port_name, e))?;
 
-        connection.write_all(b"ATZ\r").map_err(|e| e.to_string())?;
+        let adapter = HardwareAdapter {
+            connection: Mutex::new(connection),
+        };
+
+        // Reset ELM327
+        let _ = adapter.send_request(b"ATZ\r");
         std::thread::sleep(Duration::from_millis(500));
 
-        connection.write_all(b"ATE0\r").map_err(|e| e.to_string())?;
-        std::thread::sleep(Duration::from_millis(100));
+        // Disable echo
+        let _ = adapter.send_request(b"ATE0\r");
 
-        Ok(HardwareAdapter {
-            connection: Mutex::new(connection),
-        })
+        // Set protocol to automatic
+        let _ = adapter.send_request(b"ATSP0\r");
+
+        // Test vehicle communication (PID 0100 queries supported PIDs 01-20)
+        let test_response = adapter
+            .send_request(b"0100\r")
+            .map_err(|e| format!("Failed to send handshake PID: {}", e))?;
+
+        // Check whether the ECU responded or connection failed
+        if test_response.contains("UNABLE TO CONNECT")
+            || test_response.contains("BUS INIT: ERROR")
+            || test_response.contains("NO DATA")
+            || test_response.contains("CAN ERROR")
+            || test_response.trim().is_empty()
+        {
+            return Err(format!(
+                "ECU communication check failed (ignition off or unplugged): {}",
+                test_response.trim()
+            ));
+        }
+
+        Ok(adapter)
     }
 
     fn send_request(&self, command: &[u8]) -> Result<String, String> {
         let mut conn = self.connection.lock().map_err(|_| "Failed to lock mutex")?;
         conn.write_all(command).map_err(|e| e.to_string())?;
 
-        let mut buffer = [0; 128];
-        let bytes_read = conn.read(&mut buffer).map_err(|e| e.to_string())?;
+        let mut response = Vec::new();
+        let mut byte_buf = [0u8; 1];
 
-        Ok(String::from_utf8_lossy(&buffer[..bytes_read]).to_string())
+        // Keep reading until the ELM327 prompt character '>' is encountered
+        loop {
+            match conn.read(&mut byte_buf) {
+                Ok(1) => {
+                    if byte_buf[0] == b'>' {
+                        break;
+                    }
+                    response.push(byte_buf[0]);
+                }
+                Ok(_) => break,
+                Err(e) => {
+                    // Stop on timeout or stream errors
+                    if !response.is_empty() {
+                        break;
+                    }
+                    return Err(e.to_string());
+                }
+            }
+        }
+
+        Ok(String::from_utf8_lossy(&response).to_string())
     }
 }
 
@@ -186,20 +231,13 @@ impl ObdInterface for HardwareAdapter {
     }
 
     fn read_current_gear(&self) -> Result<u8, ObdError> {
-        // Approach 1: Try reading the standard PID (often fails/returns NO DATA)
-        // let raw = self.send_request(b"01A4\r").map_err(|_| ObdError::NotImplemented("Hardware error".to_string()))?;
-        // Ok(parse_current_gear_pid(&raw))
-
-        // Approach 2: The universal fallback calculation using RPM and Speed
         let rpm = self.read_engine_rpm()?;
         let speed = self.read_vehicle_speed()?;
-        
         Ok(calculate_gear_from_ratio(rpm, speed))
     }
 }
 
 // --- UNIT TESTS ---
-// This module is only compiled when running `cargo test`
 
 #[cfg(test)]
 mod tests {
@@ -207,20 +245,14 @@ mod tests {
 
     #[test]
     fn test_parse_engine_rpm() {
-        // Expected: A = 0x1A (26), B = 0xF8 (248) -> ((26 * 256) + 248) / 4 = 1726
         assert_eq!(parse_engine_rpm("41 0C 1A F8\r\n"), 1726);
-
-        // Test without spaces and carriage returns
         assert_eq!(parse_engine_rpm("410C1AF8"), 1726);
-
-        // Test invalid response
         assert_eq!(parse_engine_rpm("SEARCHING..."), 0);
         assert_eq!(parse_engine_rpm("NODATA"), 0);
     }
 
     #[test]
     fn test_parse_vehicle_speed() {
-        // Expected: A = 0x32 (50) -> 50 km/h
         assert_eq!(parse_vehicle_speed("41 0D 32\r\n"), 50);
         assert_eq!(parse_vehicle_speed("410D32"), 50);
         assert_eq!(parse_vehicle_speed("ERROR"), 0);
@@ -228,22 +260,14 @@ mod tests {
 
     #[test]
     fn test_parse_oil_temp() {
-        // Expected: A = 0x5A (90) -> 90 - 40 = 50.0 degrees Celsius
         assert_eq!(parse_oil_temp("41 5C 5A\r\n"), 50.0);
-
-        // Expected: A = 0x28 (40) -> 40 - 40 = 0.0 degrees Celsius
         assert_eq!(parse_oil_temp("41 5C 28"), 0.0);
     }
 
     #[test]
     fn test_parse_error_code() {
-        // Expected: A = 0x01, B = 0x33 -> 00000001 00110011 -> Powertrain (P), 0, 1, 3, 3 -> P0133
         assert_eq!(parse_error_code("43 01 33\r\n"), "P0133");
-
-        // Expected: No errors present
         assert_eq!(parse_error_code("43 00 00\r\n"), "NONE");
-
-        // Expected: Invalid or garbled response
         assert_eq!(parse_error_code("NO DATA"), "UNKNOWN");
     }
 }

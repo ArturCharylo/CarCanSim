@@ -1,14 +1,19 @@
 mod metrics;
 
-use axum::{Router, middleware, routing::get};
-use std::{net::SocketAddr};
-use tokio::time::{Duration, sleep};
+use axum::{middleware, routing::get, Router};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
 
-use car_can_sim::obd::{ObdInterface, hardware::HardwareAdapter, simulator::Simulator};
+use car_can_sim::obd::{
+    hardware::{calculate_gear_from_ratio, HardwareAdapter},
+    simulator::Simulator,
+    ObdInterface,
+};
 
 use metrics::{
-    CURRENT_GEAR, ENGINE_RPM, ERR_CODE, OIL_TEMP, VEHICLE_SPEED, 
-    health_handler, metrics_handler, register_metrics, track_metrics_middleware,
+    health_handler, metrics_handler, register_metrics, track_metrics_middleware, CURRENT_GEAR,
+    ENGINE_RPM, ERR_CODE, OIL_TEMP, VEHICLE_SPEED,
 };
 
 #[tokio::main]
@@ -16,78 +21,109 @@ async fn main() {
     // Initialize Prometheus metrics
     register_metrics();
 
-    let obd_mode = std::env::var("OBD_MODE").unwrap_or_else(|_| "simulator".to_string());
+    let obd_mode = std::env::var("OBD_MODE").unwrap_or_else(|_| "auto".to_string());
+    let port = std::env::var("OBD_PORT").unwrap_or_else(|_| "COM3".to_string());
 
-    let obd_interface: Box<dyn ObdInterface> = if obd_mode == "hardware" {
-        let port = std::env::var("OBD_PORT").unwrap_or_else(|_| "COM3".to_string());
-        let adapter =
-            HardwareAdapter::new(&port).expect("Failed to initialize Bluetooth OBD-II adapter");
-        Box::new(adapter)
-    } else {
-        Box::new(Simulator::new())
+    // Setup interface with auto-fallback support
+    let obd_interface: Arc<Box<dyn ObdInterface>> = match obd_mode.as_str() {
+        "hardware" => {
+            println!("Explicit hardware mode requested on port: {}", port);
+            let adapter =
+                HardwareAdapter::new(&port).expect("Failed to initialize OBD-II hardware adapter");
+            Arc::new(Box::new(adapter))
+        }
+        "simulator" => {
+            println!("Explicit simulator mode requested.");
+            Arc::new(Box::new(Simulator::new()))
+        }
+        _ => {
+            // Default "auto" mode: try connecting to hardware, fallback to simulator
+            println!("Attempting connection to OBD-II adapter on {}...", port);
+            match HardwareAdapter::new(&port) {
+                Ok(adapter) => {
+                    println!("Successfully connected to vehicle via {}", port);
+                    Arc::new(Box::new(adapter))
+                }
+                Err(e) => {
+                    eprintln!("Hardware connection unavailable ({}), falling back to simulator.", e);
+                    Arc::new(Box::new(Simulator::new()))
+                }
+            }
+        }
     };
 
-    // Test print
+    // Initial sanity check print
     match obd_interface.read_engine_rpm() {
         Ok(rpm) => println!("Initial test RPM read: {}", rpm),
         Err(e) => println!("Initial test RPM read failed: {}", e),
     }
 
-    tokio::spawn(async move {
+    // Run blocking serial/hardware polling on a dedicated OS thread to prevent blocking Tokio workers
+    let interface_clone = Arc::clone(&obd_interface);
+    std::thread::spawn(move || {
         loop {
-            // Read and set vehicle speed
-            match obd_interface.read_vehicle_speed() {
-                Ok(speed) => VEHICLE_SPEED.set(speed as f64),
-                Err(e) => println!("Error reading speed: {}", e),
-            }
+            // Read speed
+            let speed = match interface_clone.read_vehicle_speed() {
+                Ok(val) => {
+                    VEHICLE_SPEED.set(val as f64);
+                    Some(val)
+                }
+                Err(e) => {
+                    eprintln!("Error reading speed: {}", e);
+                    None
+                }
+            };
 
-            // Read and set engine RPM
-            match obd_interface.read_engine_rpm() {
-                Ok(rpm) => ENGINE_RPM.set(rpm as f64),
-                Err(e) => println!("Error reading RPM: {}", e),
-            }
+            // Read RPM
+            let rpm = match interface_clone.read_engine_rpm() {
+                Ok(val) => {
+                    ENGINE_RPM.set(val as f64);
+                    Some(val)
+                }
+                Err(e) => {
+                    eprintln!("Error reading RPM: {}", e);
+                    None
+                }
+            };
 
-            // Read and set oil temperature from the interface
-            match obd_interface.read_oil_temp() {
+            // Read oil temperature
+            match interface_clone.read_oil_temp() {
                 Ok(temp) => OIL_TEMP.set(temp as f64),
-                Err(e) => println!("Error reading oil temp: {}", e),
+                Err(e) => eprintln!("Error reading oil temp: {}", e),
             }
 
-            // Read and set error codes
-            match obd_interface.read_error_code() {
+            // Read error codes
+            match interface_clone.read_error_code() {
                 Ok(code) => {
-                    if code == "NONE" {
+                    if code == "NONE" || code == "UNKNOWN" {
                         ERR_CODE.set(0.0);
-                    } else if code == "UNKNOWN" {
-                        ERR_CODE.set(0.0);
-                        println!("Warning: Received UNKNOWN error code status.");
                     } else {
-                        // An actual Diagnostic Trouble Code (DTC) was detected
-                        // Set the metric flag to 1.0 to trigger alerts in Grafana/Prometheus
+                        // Diagnostic Trouble Code (DTC) detected
                         ERR_CODE.set(1.0);
                         println!("Diagnostic Trouble Code detected: {}", code);
                     }
                 }
-                Err(e) => {
-                    println!("Error reading error code: {}", e);
-                }
-            }
-            match obd_interface.read_current_gear() {
-                Ok(gear) => CURRENT_GEAR.set(gear as f64),
-                Err(e) => println!("Error reading current gear: {}", e)
+                Err(e) => eprintln!("Error reading error code: {}", e),
             }
 
-            sleep(Duration::from_secs(1)).await;
+            // Calculate current gear from already queried metrics instead of sending extra requests
+            if let (Some(r), Some(s)) = (rpm, speed) {
+                let gear = calculate_gear_from_ratio(r, s);
+                CURRENT_GEAR.set(gear as f64);
+            }
+
+            std::thread::sleep(Duration::from_secs(1));
         }
     });
 
+    // Setup HTTP server routes
     let app = Router::new()
         .route("/metrics", get(metrics_handler))
         .route("/health", get(health_handler))
         .layer(middleware::from_fn(track_metrics_middleware));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    println!("Running on port http://localhost:{}/metrics", addr.port());
+    println!("Running on http://localhost:{}/metrics", addr.port());
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
