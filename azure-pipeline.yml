@@ -4,8 +4,8 @@ trigger:
 pool:
   name: 'Default'
 
-# Azure resource group must be created for stage 2 to succeed.
-# This is a flag for the pipeline to pass omiting the stage 2 to avoid unneccesary costs from Azure ACR.
+# Azure resource group must be created for stage 3 to succeed.
+# This is a flag for the pipeline to pass omitting stage 3 to avoid unnecessary costs from Azure ACR.
 parameters:
   - name: deployToAzure
     displayName: 'Deploy to Azure cloud?'
@@ -40,7 +40,50 @@ stages:
               kind load docker-image telemetry-app:latest --name $(CLUSTER_NAME)
             displayName: 'Deploy to Local Kind Cluster and Verify Rollout'
 
-  # Stage 2: Deploy to Azure (ACR + ACA)
+  # Stage 2: Sync Repositories (Only runs after PR merge / direct push to main)
+  - stage: SyncRepos
+    displayName: 'Sync Repositories'
+    dependsOn: LocalTestAndBuild
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: SyncRepos
+        displayName: 'Push Mirror to Gitea and Azure Repos'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+            persistCredentials: true
+
+          - powershell: |
+              # Update or create gitea remote
+              $giteaUrl = "http://${env:GITEA_TOKEN}@gitea.local/artur/carcansim.git"
+
+              if (git remote | Select-String "gitea") {
+                  git remote set-url gitea $giteaUrl
+              } else {
+                  git remote add gitea $giteaUrl
+              }
+              
+              git push --force gitea main
+            displayName: 'Push to Gitea'
+            env:
+              GITEA_TOKEN: $(GITEA_TOKEN)
+
+          - powershell: |
+              # Update or create Azure DevOps remote
+              $azUrl = "https://${env:AZURE_TOKEN}@dev.azure.com/arturcha/CarCanSim/_git/CarCanSim"
+              
+              if (git remote | Select-String "az") {
+                  git remote set-url az $azUrl
+              } else {
+                  git remote add az $azUrl
+              }
+              
+              git push --force az main
+            displayName: 'Push to Azure DevOps'
+            env:
+              AZURE_TOKEN: $(AZURE_TOKEN)
+
+  # Stage 3: Deploy to Azure (ACR + ACA)
   - stage: DeployToAzure
     displayName: 'Deploy to Azure'
     dependsOn: LocalTestAndBuild
