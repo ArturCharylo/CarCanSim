@@ -63,7 +63,7 @@ stages:
                   git remote add gitea $giteaUrl
               }
               
-              git push --force gitea main
+              git push --force gitea HEAD:main
             displayName: 'Push to Gitea'
             env:
               GITEA_TOKEN: $(GITEA_TOKEN)
@@ -78,7 +78,7 @@ stages:
                   git remote add az $azUrl
               }
               
-              git push --force az main
+              git push --force az HEAD:main
             displayName: 'Push to Azure DevOps'
             env:
               AZURE_TOKEN: $(AZURE_TOKEN)
